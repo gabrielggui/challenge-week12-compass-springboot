@@ -2,38 +2,71 @@ package uol.compass.challenge3.service;
 
 import java.util.ArrayList;
 
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 
 import jakarta.transaction.Transactional;
 import uol.compass.challenge3.entity.Post;
 import uol.compass.challenge3.entity.State;
 import uol.compass.challenge3.entity.Status;
+import uol.compass.challenge3.queue.PostQueue;
+import uol.compass.challenge3.queue.QueueType;
 import uol.compass.challenge3.repository.PostRepository;
 
 @Service
 public class PostService {
 
-    private final RabbitTemplate rabbitTemplate;
+    @PersistenceContext
+    private EntityManager entityManager;
     private final PostRepository postRepository;
+    private final PostQueue postQueue;
 
-    @Autowired
-    public PostService(RabbitTemplate rabbitTemplate, PostRepository postRepository) {
-        this.rabbitTemplate = rabbitTemplate;
+    public PostService(PostRepository postRepository, PostQueue postQueue) {
         this.postRepository = postRepository;
+        this.postQueue = postQueue;
     }
 
     @Transactional
-    public void createdPost(Long postId) {
+    public Post createPost(Long postId){
+
         if (postRepository.existsById(postId))
             throw new RuntimeException();
 
-        Post post = new Post(postId, "", "", null, new ArrayList<>());
+        Post post = new Post(postId, null, null, null, new ArrayList<>());
         post.getStates().add(new State(Status.CREATED, post));
-        postRepository.save(post);
+        Post createdPost = postRepository.save(post);
 
-        rabbitTemplate.convertAndSend("CREATED", postId);
+        postQueue.insertIntoQueue(QueueType.CREATED, post);
+
+        return createdPost;
     }
 
+    public Post save(Post post) {
+        return postRepository.save(post);
+    }
+
+    @Transactional
+    public Post update(Post post) {
+        if (!postRepository.existsById(post.getId()))
+            throw new RuntimeException();
+
+        return postRepository.save(post);
+    }
+
+    public Iterable<Post> findAll() {
+        return postRepository.findAll();
+    }
+
+    public Post findById(Long id) {
+        return postRepository.findById(id).get();
+    }
+
+    @Transactional
+    public void saveWithPessimisticLock(Post post) {
+        entityManager.lock(post, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.merge(post);
+    }
 }
+
