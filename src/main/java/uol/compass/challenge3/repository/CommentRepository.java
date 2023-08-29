@@ -1,9 +1,10 @@
 package uol.compass.challenge3.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+
+import org.springframework.data.repository.CrudRepository;
 
 import uol.compass.challenge3.entity.Comment;
 
-public interface CommentRepository extends JpaRepository<Comment, Long> {
+public interface CommentRepository extends CrudRepository<Comment, Long> {
 
 }
