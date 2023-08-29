@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component;
 import uol.compass.challenge3.entity.Post;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -14,8 +13,8 @@ public class PostQueue {
 
     private final Map<String, BlockingQueue<Post>> postQueues;
 
-    public PostQueue() {
-        postQueues = new HashMap<>();
+    public PostQueue(Map<String, BlockingQueue<Post>> postQueues) {
+        this.postQueues = postQueues;
         Arrays.stream(QueueType.values()).forEach(q -> postQueues.put(q.name(), new LinkedBlockingQueue<>()));
     }
 

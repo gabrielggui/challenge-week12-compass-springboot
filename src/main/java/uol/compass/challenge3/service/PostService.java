@@ -3,7 +3,6 @@ package uol.compass.challenge3.service;
 import java.util.ArrayList;
 
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +31,7 @@ public class PostService {
     public Post createPost(Long postId){
 
         if (postRepository.existsById(postId))
-            throw new RuntimeException();
+            throw new RuntimeException("existe");
 
         Post post = new Post(postId, null, null, null, new ArrayList<>());
         post.getStates().add(new State(Status.CREATED, post));
@@ -63,10 +62,5 @@ public class PostService {
         return postRepository.findById(id).get();
     }
 
-    @Transactional
-    public void saveWithPessimisticLock(Post post) {
-        entityManager.lock(post, LockModeType.PESSIMISTIC_WRITE);
-        entityManager.merge(post);
-    }
 }
 
