@@ -9,7 +9,7 @@ import uol.compass.challenge3.entity.State;
 
 public interface StateRepository extends JpaRepository<State, Long> {
 
-    @Query("SELECT s FROM State s WHERE s.post.id = :postId AND s.date " +
-            "= (SELECT MAX(ss.date) FROM State ss WHERE ss.post.id = :postId)")
+    @Query("SELECT s FROM State s WHERE s.post.id = :postId " +
+            "AND s.id = (SELECT MAX(ss.id) FROM State ss WHERE ss.post.id = :postId)")
     Optional<State> findLatestStateByPostId(Long postId);
 }

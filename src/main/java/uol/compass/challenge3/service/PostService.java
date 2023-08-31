@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
@@ -30,7 +28,7 @@ import uol.compass.challenge3.validator.PostIdValidator;
 public class PostService {
 
     private final Logger logger = LoggerFactory.getLogger(PostService.class);
-    
+
     private final PostRepository postRepository;
     private final PostProducer postProducer;
     private final StateRepository stateRepository;
@@ -50,15 +48,10 @@ public class PostService {
         postIdValidator.validateIdConstraints(id);
 
         Post post = new Post(id, "", "", null, new ArrayList<>());
-        post.getStates().add(new State(Status.CREATED, post));
+        post = this.updatePostState(post, Status.CREATED);
         Post savedPost = this.save(post);
 
-        try {
-            postProducer.sendToQueue(savedPost, QueueType.CREATED);
-        } catch (JsonProcessingException e) {
-            logger.error("Error sending post to queue", e);
-            throw new RuntimeException(e);
-        }
+        postProducer.sendToQueue(savedPost, QueueType.CREATED);
         logger.info("Successfully sent post for processing by post id {}", id);
         return post;
     }
@@ -76,12 +69,7 @@ public class PostService {
             post.getStates().add(new State(Status.UPDATING, post));
             Post updatedPost = this.update(post);
 
-            try {
-                postProducer.sendToQueue(post, QueueType.UPDATING);
-            } catch (JsonProcessingException e) {
-                logger.error("Error sending post to queue", e);
-                throw new RuntimeException(e);
-            }
+            postProducer.sendToQueue(post, QueueType.UPDATING);
             logger.info("Successfully sent post for reprocessing by post id {}", id);
             return updatedPost;
         } else {
@@ -97,7 +85,7 @@ public class PostService {
         State lastPostState = stateRepository.findLatestStateByPostId(id).orElseThrow(NoSuchElementException::new);
 
         if (lastPostState.getStatus() == Status.ENABLED) {
-            post.getStates().add(new State(Status.DISABLED, post));
+            post = this.updatePostState(post, Status.DISABLED);
             Post updatedPost = this.update(post);
 
             return updatedPost;
@@ -138,7 +126,6 @@ public class PostService {
         return postRepository.findAll();
     }
 
-    @Cacheable("posts")
     public Page<Post> findAll(Pageable pageable) {
         logger.info("Received request to find all posts with pagination");
         return postRepository.findAll(pageable);
@@ -151,4 +138,9 @@ public class PostService {
         return postRepository.findById(id).orElseThrow(NoSuchElementException::new);
     }
 
+    public Post updatePostState(Post post, Status status) {
+        logger.info("Updating post state to: {} for Post ID: {}", status, post.getId());
+        post.getStates().add(new State(status, post));
+        return post;
+    }
 }
