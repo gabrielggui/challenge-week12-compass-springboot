@@ -1,13 +1,14 @@
 package uol.compass.challenge3.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
+
+import java.util.Objects;
 
 @Entity
 public class Comment {
@@ -19,7 +20,7 @@ public class Comment {
     @Column(nullable = false, length = 500)
     private String body;
 
-    @JsonIgnore
+    @JsonBackReference
     @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private Post post;
 
@@ -54,5 +55,20 @@ public class Comment {
 
     public void setPost(Post post) {
         this.post = post;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        Comment comment = (Comment) o;
+        return Objects.equals(id, comment.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

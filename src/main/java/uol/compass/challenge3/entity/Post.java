@@ -1,7 +1,9 @@
 package uol.compass.challenge3.entity;
 
 import java.util.List;
+import java.util.Objects;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.persistence.CascadeType;
@@ -15,7 +17,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 
 @Entity
-public class Post {
+public class Post{
 
     @Id
     @Min(value = 1, message = "The minimum value is 1.")
@@ -27,10 +29,12 @@ public class Post {
 
     private String body;
 
-    @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JsonManagedReference
+    @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private List<Comment> comments;
 
     @JsonProperty("history")
+    @JsonManagedReference
     @NotEmpty
     @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private List<State> states;
@@ -84,5 +88,20 @@ public class Post {
 
     public void setStates(List<State> states) {
         this.states = states;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        Post post = (Post) o;
+        return Objects.equals(id, post.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

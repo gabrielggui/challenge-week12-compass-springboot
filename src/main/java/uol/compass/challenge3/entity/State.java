@@ -2,7 +2,7 @@ package uol.compass.challenge3.entity;
 
 import java.util.Date;
 
-import org.hibernate.annotations.CreationTimestamp;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -25,7 +25,6 @@ public class State {
     @Column(updatable = false, nullable = false, unique = true)
     private Long id;
 
-    @CreationTimestamp
     @Temporal(TemporalType.TIMESTAMP)
     @Column(updatable = false, nullable = false)
     private Date date;
@@ -34,6 +33,7 @@ public class State {
     @Column(updatable = false, nullable = false)
     private Status status;
 
+    @JsonBackReference
     @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     private Post post;
 
@@ -43,6 +43,7 @@ public class State {
     public State(Status status, Post post) {
         this.status = status;
         this.post = post;
+        this.date = new Date();
     }
 
     public Long getId() {
