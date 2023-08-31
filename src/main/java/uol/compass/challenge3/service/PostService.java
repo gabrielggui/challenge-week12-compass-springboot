@@ -1,66 +1,154 @@
 package uol.compass.challenge3.service;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.NoSuchElementException;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
+import com.fasterxml.jackson.core.JsonProcessingException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import jakarta.transaction.Transactional;
+import jakarta.persistence.EntityExistsException;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.Valid;
 import uol.compass.challenge3.entity.Post;
 import uol.compass.challenge3.entity.State;
 import uol.compass.challenge3.entity.Status;
-import uol.compass.challenge3.queue.PostQueue;
-import uol.compass.challenge3.queue.QueueType;
+import uol.compass.challenge3.messaging.PostProducer;
+import uol.compass.challenge3.messaging.QueueType;
 import uol.compass.challenge3.repository.PostRepository;
+import uol.compass.challenge3.repository.StateRepository;
+import uol.compass.challenge3.validator.PostIdValidator;
 
 @Service
 public class PostService {
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    private final Logger logger = LoggerFactory.getLogger(PostService.class);
+    
     private final PostRepository postRepository;
-    private final PostQueue postQueue;
+    private final PostProducer postProducer;
+    private final StateRepository stateRepository;
+    private final PostIdValidator postIdValidator;
 
-    public PostService(PostRepository postRepository, PostQueue postQueue) {
+    public PostService(PostRepository postRepository, PostProducer postProducer, StateRepository stateRepository,
+            PostIdValidator postIdValidator) {
         this.postRepository = postRepository;
-        this.postQueue = postQueue;
+        this.postProducer = postProducer;
+        this.stateRepository = stateRepository;
+        this.postIdValidator = postIdValidator;
     }
 
-    @Transactional
-    public Post createPost(Long postId){
+    @CacheEvict(value = { "posts", "post" }, allEntries = true)
+    public Post sendPostForProcessingByPostId(Long id) {
+        logger.info("Received request to send post for processing by post id {}", id);
+        postIdValidator.validateIdConstraints(id);
 
-        if (postRepository.existsById(postId))
-            throw new RuntimeException("existe");
-
-        Post post = new Post(postId, null, null, null, new ArrayList<>());
+        Post post = new Post(id, "", "", null, new ArrayList<>());
         post.getStates().add(new State(Status.CREATED, post));
-        Post createdPost = postRepository.save(post);
+        Post savedPost = this.save(post);
 
-        postQueue.insertIntoQueue(QueueType.CREATED, post);
-
-        return createdPost;
+        try {
+            postProducer.sendToQueue(savedPost, QueueType.CREATED);
+        } catch (JsonProcessingException e) {
+            logger.error("Error sending post to queue", e);
+            throw new RuntimeException(e);
+        }
+        logger.info("Successfully sent post for processing by post id {}", id);
+        return post;
     }
 
-    public Post save(Post post) {
+    @CacheEvict(value = { "posts", "post" }, allEntries = true)
+    public Post sendPostForReprocessingByPostId(Long id) {
+        logger.info("Received request to send post for reprocessing by post id {}", id);
+        Post post = this.findById(id);
+        State lastPostState = stateRepository.findLatestStateByPostId(id).orElseThrow(NoSuchElementException::new);
+
+        if (lastPostState.getStatus() == Status.ENABLED || lastPostState.getStatus() == Status.DISABLED) {
+            post.setTitle(null);
+            post.setBody(null);
+            post.getComments().clear();
+            post.getStates().add(new State(Status.UPDATING, post));
+            Post updatedPost = this.update(post);
+
+            try {
+                postProducer.sendToQueue(post, QueueType.UPDATING);
+            } catch (JsonProcessingException e) {
+                logger.error("Error sending post to queue", e);
+                throw new RuntimeException(e);
+            }
+            logger.info("Successfully sent post for reprocessing by post id {}", id);
+            return updatedPost;
+        } else {
+            logger.error("Post is not in an enabled or disabled state");
+            throw new IllegalStateException("\"Post\" is not in an enabled or disabled state.");
+        }
+    }
+
+    @CacheEvict(value = { "posts", "post" }, allEntries = true)
+    public Post disablePostById(Long id) {
+        logger.info("Received request to disable post by post id {}", id);
+        Post post = this.findById(id);
+        State lastPostState = stateRepository.findLatestStateByPostId(id).orElseThrow(NoSuchElementException::new);
+
+        if (lastPostState.getStatus() == Status.ENABLED) {
+            post.getStates().add(new State(Status.DISABLED, post));
+            Post updatedPost = this.update(post);
+
+            return updatedPost;
+        } else {
+            logger.error("Post is not in an enabled state");
+            throw new IllegalStateException("\"Post\" is not in an enabled state.");
+        }
+    }
+
+    @CacheEvict(value = { "posts", "post" }, allEntries = true)
+    public Post save(@Valid Post post) {
+        logger.info("Received request to save post");
+
+        if (postRepository.existsById(post.getId())) {
+            logger.error("Post with id {} already exists", post.getId());
+            throw new EntityExistsException("The entity \"post\" with the id entered already exists in the database.");
+        }
+
         return postRepository.save(post);
     }
 
-    @Transactional
-    public Post update(Post post) {
-        if (!postRepository.existsById(post.getId()))
-            throw new RuntimeException();
+    @CacheEvict(value = { "posts", "post" }, allEntries = true)
+    public Post update(@Valid Post post) {
+        logger.info("Received request to update post");
+
+        if (!postRepository.existsById(post.getId())) {
+            logger.error("Post with id {} does not exist", post.getId());
+            throw new EntityNotFoundException("The \"post\" entity with the id" +
+                    " entered does not exist in the database.");
+        }
 
         return postRepository.save(post);
     }
 
-    public Iterable<Post> findAll() {
+    @Cacheable("posts")
+    public List<Post> findAll() {
+        logger.info("Received request to find all posts");
         return postRepository.findAll();
     }
 
+    @Cacheable("posts")
+    public Page<Post> findAll(Pageable pageable) {
+        logger.info("Received request to find all posts with pagination");
+        return postRepository.findAll(pageable);
+    }
+
+    @Cacheable("post")
     public Post findById(Long id) {
-        return postRepository.findById(id).get();
+        logger.info("Received request to find post by id {}", id);
+        postIdValidator.validateIdConstraints(id);
+        return postRepository.findById(id).orElseThrow(NoSuchElementException::new);
     }
 
 }
-
