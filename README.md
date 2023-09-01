@@ -14,7 +14,6 @@ Create an application that asynchronously fetches posts from an external API, en
 
 ### v2 (20230901)
 * Replaced RabbitMQ for embedded ActiveMQ
-* Code refactoring
 
 ## API documentation
 To access the API documentation, you need to start the application and then access the specified address: http://localhost:8080/. This route will provide an interactive interface that outlines all pertinent information about the API, encompassing available endpoints, accepted parameters, and response formats.
