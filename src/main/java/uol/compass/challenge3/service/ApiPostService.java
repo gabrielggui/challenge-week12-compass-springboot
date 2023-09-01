@@ -4,11 +4,12 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import uol.compass.challenge3.api.PostApiClient;
 import uol.compass.challenge3.entity.Comment;
 import uol.compass.challenge3.entity.Post;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class ApiPostService {

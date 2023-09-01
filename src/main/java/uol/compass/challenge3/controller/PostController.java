@@ -26,7 +26,7 @@ public class PostController {
 
     private final Logger logger = LoggerFactory.getLogger(PostController.class);
 
-    private PostService postService;
+    private final PostService postService;
 
     public PostController(PostService postService) {
         this.postService = postService;

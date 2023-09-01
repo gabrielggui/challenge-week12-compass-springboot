@@ -22,6 +22,7 @@ import uol.compass.challenge3.messaging.PostProducer;
 import uol.compass.challenge3.messaging.QueueType;
 import uol.compass.challenge3.repository.PostRepository;
 import uol.compass.challenge3.repository.StateRepository;
+import uol.compass.challenge3.utils.PostUtils;
 import uol.compass.challenge3.validator.PostIdValidator;
 
 @Service
@@ -33,13 +34,15 @@ public class PostService {
     private final PostProducer postProducer;
     private final StateRepository stateRepository;
     private final PostIdValidator postIdValidator;
+    private final PostUtils postUtils;
 
     public PostService(PostRepository postRepository, PostProducer postProducer, StateRepository stateRepository,
-            PostIdValidator postIdValidator) {
+            PostIdValidator postIdValidator, PostUtils postUtils) {
         this.postRepository = postRepository;
         this.postProducer = postProducer;
         this.stateRepository = stateRepository;
         this.postIdValidator = postIdValidator;
+        this.postUtils = postUtils;
     }
 
     @CacheEvict(value = { "posts", "post" }, allEntries = true)
@@ -48,7 +51,7 @@ public class PostService {
         postIdValidator.validateIdConstraints(id);
 
         Post post = new Post(id, "", "", null, new ArrayList<>());
-        post = this.updatePostState(post, Status.CREATED);
+        post = postUtils.updatePostState(post, Status.CREATED);
         Post savedPost = this.save(post);
 
         postProducer.sendToQueue(savedPost, QueueType.CREATED);
@@ -66,7 +69,7 @@ public class PostService {
             post.setTitle(null);
             post.setBody(null);
             post.getComments().clear();
-            post.getStates().add(new State(Status.UPDATING, post));
+            post = postUtils.updatePostState(post, Status.UPDATING);
             Post updatedPost = this.update(post);
 
             postProducer.sendToQueue(post, QueueType.UPDATING);
@@ -85,10 +88,10 @@ public class PostService {
         State lastPostState = stateRepository.findLatestStateByPostId(id).orElseThrow(NoSuchElementException::new);
 
         if (lastPostState.getStatus() == Status.ENABLED) {
-            post = this.updatePostState(post, Status.DISABLED);
-            Post updatedPost = this.update(post);
+            post = postUtils.updatePostState(post, Status.DISABLED);
+            post = this.update(post);
 
-            return updatedPost;
+            return post;
         } else {
             logger.error("Post is not in an enabled state");
             throw new IllegalStateException("\"Post\" is not in an enabled state.");
@@ -138,9 +141,4 @@ public class PostService {
         return postRepository.findById(id).orElseThrow(NoSuchElementException::new);
     }
 
-    public Post updatePostState(Post post, Status status) {
-        logger.info("Updating post state to: {} for Post ID: {}", status, post.getId());
-        post.getStates().add(new State(status, post));
-        return post;
-    }
 }
