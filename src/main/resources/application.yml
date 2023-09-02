@@ -1,8 +1,14 @@
 spring:
   activemq:
-    broker-url: tcp://localhost:61616?jms.prefetchPolicy.all=1
-    user: admin
-    password: admin
+    broker-url: vm://embedded?broker.persistent=false
+    in-memory: true
+  jms:
+    listener:
+      acknowledge-mode: auto
+      auto-startup: true
+      concurrency: 3
+      max-concurrency: 7
+
   cache:
     cache-names: post, posts
 

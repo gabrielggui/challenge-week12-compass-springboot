@@ -28,8 +28,8 @@ public class PostConsumer {
         this.postUtils = postUtils;
     }
 
-    @JmsListener(destination = "CREATED", concurrency = "5")
-    @JmsListener(destination = "UPDATING", concurrency = "2")
+    @JmsListener(destination = "CREATED")
+    @JmsListener(destination = "UPDATING")
     public void processQueue(String message) throws JsonProcessingException {
         logger.info("Received message from queue: {}", message);
 
