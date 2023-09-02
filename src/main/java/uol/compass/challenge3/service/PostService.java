@@ -11,6 +11,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
@@ -20,6 +21,7 @@ import uol.compass.challenge3.entity.State;
 import uol.compass.challenge3.entity.Status;
 import uol.compass.challenge3.messaging.PostProducer;
 import uol.compass.challenge3.messaging.QueueType;
+import uol.compass.challenge3.repository.CommentRepository;
 import uol.compass.challenge3.repository.PostRepository;
 import uol.compass.challenge3.repository.StateRepository;
 import uol.compass.challenge3.utils.PostUtils;
@@ -33,32 +35,36 @@ public class PostService {
     private final PostRepository postRepository;
     private final PostProducer postProducer;
     private final StateRepository stateRepository;
+    private final CommentRepository commentRepository;
     private final PostIdValidator postIdValidator;
     private final PostUtils postUtils;
 
     public PostService(PostRepository postRepository, PostProducer postProducer, StateRepository stateRepository,
-            PostIdValidator postIdValidator, PostUtils postUtils) {
+            CommentRepository commentRepository, PostIdValidator postIdValidator, PostUtils postUtils) {
         this.postRepository = postRepository;
         this.postProducer = postProducer;
         this.stateRepository = stateRepository;
+        this.commentRepository = commentRepository;
         this.postIdValidator = postIdValidator;
         this.postUtils = postUtils;
     }
 
+    @Transactional
     @CacheEvict(value = { "posts", "post" }, allEntries = true)
     public Post sendPostForProcessingByPostId(Long id) {
         logger.info("Received request to send post for processing by post id {}", id);
         postIdValidator.validateIdConstraints(id);
 
-        Post post = new Post(id, "", "", null, new ArrayList<>());
+        Post post = new Post(id, "", "", new ArrayList<>(), new ArrayList<>());
         post = postUtils.updatePostState(post, Status.CREATED);
         Post savedPost = this.save(post);
 
         postProducer.sendToQueue(savedPost, QueueType.CREATED);
         logger.info("Successfully sent post for processing by post id {}", id);
-        return post;
+        return savedPost;
     }
 
+    @Transactional
     @CacheEvict(value = { "posts", "post" }, allEntries = true)
     public Post sendPostForReprocessingByPostId(Long id) {
         logger.info("Received request to send post for reprocessing by post id {}", id);
@@ -66,11 +72,12 @@ public class PostService {
         State lastPostState = stateRepository.findLatestStateByPostId(id).orElseThrow(NoSuchElementException::new);
 
         if (lastPostState.getStatus() == Status.ENABLED || lastPostState.getStatus() == Status.DISABLED) {
-            post.setTitle(null);
-            post.setBody(null);
-            post.getComments().clear();
+            post.setTitle("");
+            post.setBody("");
             post = postUtils.updatePostState(post, Status.UPDATING);
+            post.getComments().clear();
             Post updatedPost = this.update(post);
+            commentRepository.deleteByPost(post);
 
             postProducer.sendToQueue(post, QueueType.UPDATING);
             logger.info("Successfully sent post for reprocessing by post id {}", id);
@@ -81,6 +88,7 @@ public class PostService {
         }
     }
 
+    @Transactional
     @CacheEvict(value = { "posts", "post" }, allEntries = true)
     public Post disablePostById(Long id) {
         logger.info("Received request to disable post by post id {}", id);
@@ -98,6 +106,7 @@ public class PostService {
         }
     }
 
+    @Transactional
     @CacheEvict(value = { "posts", "post" }, allEntries = true)
     public Post save(@Valid Post post) {
         logger.info("Received request to save post");
@@ -110,6 +119,7 @@ public class PostService {
         return postRepository.save(post);
     }
 
+    @Transactional
     @CacheEvict(value = { "posts", "post" }, allEntries = true)
     public Post update(@Valid Post post) {
         logger.info("Received request to update post");
@@ -123,17 +133,20 @@ public class PostService {
         return postRepository.save(post);
     }
 
+    @Transactional(readOnly = true)
     @Cacheable("posts")
     public List<Post> findAll() {
         logger.info("Received request to find all posts");
         return postRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public Page<Post> findAll(Pageable pageable) {
         logger.info("Received request to find all posts with pagination");
         return postRepository.findAll(pageable);
     }
 
+    @Transactional(readOnly = true)
     @Cacheable("post")
     public Post findById(Long id) {
         logger.info("Received request to find post by id {}", id);
