@@ -1,6 +1,6 @@
-# Challenge 3
+# Posts API
 ## Objective
-The objective of this project is to create an application that asynchronously fetches posts from an external API, enriches them with comment data, and logs processing updates. Clients will be able to retrieve posts and access the processing history through the real-time API. For the development of the API, we have utilized the Java programming language in conjunction with the Spring Boot framework and the H2 database. Additionally, we have incorporated other relevant dependencies for specific purposes.
+Challenge proposed by the Compass UOL internship program, whose objective was to create an application that asynchronously fetches posts from an external API, enriches them with comment data, and logs processing updates. In this application, clients will be able to retrieve the posts and access the processing history through the real-time API. For the development of the API, the Java programming language was used in conjunction with the Spring Boot framework and the H2 database. In addition, other relevant dependencies were incorporated for specific purposes.
 
 ## Implemented resources
 ### v1 (20230831)
